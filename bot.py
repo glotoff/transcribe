@@ -9,9 +9,13 @@ import os
 import tempfile
 import logging
 from openai import OpenAI
-from pydub import AudioSegment
+#from pydub import AudioSegment
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters  # ✅ Fixed imports
+from urllib.parse import urlparse
+from pathlib import Path
+
+
 
 # Load API Keys from Environment Variables
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -40,11 +44,11 @@ def transcribe_online(file_path):
 def format_text_with_gpt(transcription):
     client = OpenAI(api_key=OPENAI_API_KEY)
     
-    prompt = f"Format the text, correct errors: {transcription}"
+    prompt = f"{transcription}"
 
     response = client.chat.completions.create(
         model="gpt-4",
-        messages=[{"role": "system", "content": "You are a professional text formatter."},
+        messages=[{"role": "system", "content": "You are a professional text formatter. Format text only, do not translate"},
                   {"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content
@@ -59,22 +63,33 @@ async def handle_voice(update: Update, context):
     voice = update.message.voice or update.message.audio
     file_id = voice.file_id
 
-    await update.message.reply_text("⏳ Processing your voice message...")
+    #await update.message.reply_text("⏳ Processing your voice message...")
 
     # Download file from Telegram
     file = await bot.get_file(file_id)
-    temp_opus_path = tempfile.NamedTemporaryFile(delete=False, suffix=".ogg").name
-    await file.download_to_drive(temp_opus_path)
-
-    # Convert Opus to WAV
-    temp_wav_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
-    audio = AudioSegment.from_file(temp_opus_path, format="ogg")
-    audio = audio.set_frame_rate(16000).set_channels(1)
-    audio.export(temp_wav_path, format="wav")
-
+    print(f"file.file_path : {file.file_path}")
     
-    transcription = transcribe_online(temp_wav_path)
+    filename = os.path.basename(urlparse(file.file_path).path)    
+    print(f"filename : {filename}")
+    file_ext = Path(filename).suffix
+    print(f"file_ext : {file_ext}")
+    
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
+        temp_opus_path = temp_file.name
+        await file.download_to_drive(temp_opus_path)
 
+        try:
+            print(f"temp_opus_path : {temp_opus_path}")
+            await update.message.reply_text("⏳ Transcribing your voice message...")
+            transcription = transcribe_online(temp_opus_path)
+        finally:
+            # Ensure the file is deleted after processing
+            if os.path.exists(temp_opus_path):
+                os.remove(temp_opus_path)
+    
+    await update.message.reply_text("⏳ Formatting your voice message...")
+    
     formatted_text = format_text_with_gpt(transcription)
     # Send response
     await update.message.reply_text(f"📝 Transcription:\n{formatted_text}")

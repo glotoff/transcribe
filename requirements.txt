@@ -23,7 +23,6 @@ openai==1.66.2
 openai-whisper==20240930
 pydantic==2.10.6
 pydantic_core==2.27.2
-pydub==0.25.1
 python-telegram-bot==21.11.1
 regex==2024.11.6
 requests==2.32.3
