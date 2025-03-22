@@ -35,7 +35,7 @@ def transcribe_online(file_path):
 
     with open(file_path, "rb") as audio_file:
         response = client.audio.transcriptions.create(
-            model="gpt-4o-mini-transcribe",
+            model="whisper-1",
             file=audio_file
         )
         #print(f"tr: {response.text}")
