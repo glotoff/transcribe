@@ -1,8 +1,8 @@
 FROM python:3.12-slim
 
-# Install ffmpeg, tesseract-ocr, and tesseract language data for English
+# Install ffmpeg, tesseract-ocr, tesseract language data for English, and ghostscript
 RUN apt-get update && \
-    apt-get install -y ffmpeg tesseract-ocr tesseract-ocr-eng && \
+    apt-get install -y ffmpeg tesseract-ocr tesseract-ocr-eng ghostscript && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
