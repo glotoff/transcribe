@@ -10,10 +10,11 @@ import tempfile
 import logging
 from openai import OpenAI
 #from pydub import AudioSegment
-from telegram import Update
+from telegram import Update, InputFile
 from telegram.ext import Application, CommandHandler, MessageHandler, filters  # ✅ Fixed imports
 from urllib.parse import urlparse
 from pathlib import Path
+import ocrmypdf
 
 
 
@@ -94,12 +95,51 @@ async def handle_voice(update: Update, context):
     # Send response
     await update.message.reply_text(f"📝 Transcription:\n{formatted_text}")
 
+async def handle_pdf(update: Update, context):
+    """Handles PDF files, runs OCR, and sends back the OCR'd PDF"""
+    bot = context.bot
+    document = update.message.document
+    file_id = document.file_id
+    file = await bot.get_file(file_id)
+    filename = os.path.basename(urlparse(file.file_path).path)
+    file_ext = Path(filename).suffix
+    if file_ext.lower() != ".pdf":
+        await update.message.reply_text("❌ Only PDF files are supported for OCR.")
+        return
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_in:
+        temp_pdf_path = temp_in.name
+        await file.download_to_drive(temp_pdf_path)
+    # Use the original filename for output, with (ocr) before .pdf
+    orig_name = document.file_name if hasattr(document, 'file_name') and document.file_name else filename
+    if orig_name.lower().endswith('.pdf'):
+        ocr_filename = orig_name[:-4] + ' (ocr).pdf'
+    else:
+        ocr_filename = orig_name + ' (ocr).pdf'
+    temp_out_pdf_path = os.path.join(os.path.dirname(temp_pdf_path), ocr_filename)
+    try:
+        await update.message.reply_text("⏳ Running OCR on your PDF...")
+        # Use ocrmypdf library
+        try:
+            ocrmypdf.ocr(temp_pdf_path, temp_out_pdf_path)
+        except Exception as e:
+            await update.message.reply_text(f"❌ OCR failed: {str(e)}")
+            return
+        # Send back the OCR'd PDF
+        with open(temp_out_pdf_path, "rb") as out_pdf:
+            await update.message.reply_document(document=InputFile(out_pdf, filename=ocr_filename))
+    finally:
+        if os.path.exists(temp_pdf_path):
+            os.remove(temp_pdf_path)
+        if os.path.exists(temp_out_pdf_path):
+            os.remove(temp_out_pdf_path)
+
 def main():
     """Starts the Telegram bot using async API"""
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))  # ✅ Uses new async filters
+    app.add_handler(MessageHandler(filters.Document.PDF, handle_pdf))  # Add PDF handler
 
     app.run_polling()
 
