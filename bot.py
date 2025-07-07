@@ -109,10 +109,16 @@ async def handle_pdf(update: Update, context):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_in:
         temp_pdf_path = temp_in.name
         await file.download_to_drive(temp_pdf_path)
-    temp_out_pdf_path = temp_pdf_path.replace(".pdf", "_ocr.pdf")
+    # Use the original filename for output, with (ocr) before .pdf
+    orig_name = document.file_name if hasattr(document, 'file_name') and document.file_name else filename
+    if orig_name.lower().endswith('.pdf'):
+        ocr_filename = orig_name[:-4] + ' (ocr).pdf'
+    else:
+        ocr_filename = orig_name + ' (ocr).pdf'
+    temp_out_pdf_path = os.path.join(os.path.dirname(temp_pdf_path), ocr_filename)
     try:
         await update.message.reply_text("⏳ Running OCR on your PDF...")
-        # Use ocrpdf library instead of subprocess
+        # Use ocrmypdf library
         try:
             ocrmypdf.ocr(temp_pdf_path, temp_out_pdf_path)
         except Exception as e:
@@ -120,7 +126,7 @@ async def handle_pdf(update: Update, context):
             return
         # Send back the OCR'd PDF
         with open(temp_out_pdf_path, "rb") as out_pdf:
-            await update.message.reply_document(document=InputFile(out_pdf, filename="ocr_output.pdf"))
+            await update.message.reply_document(document=InputFile(out_pdf, filename=ocr_filename))
     finally:
         if os.path.exists(temp_pdf_path):
             os.remove(temp_pdf_path)
