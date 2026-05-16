@@ -6,4 +6,4 @@ docker buildx build --platform linux/amd64,linux/arm64 -t glotoff/transcribe-bot
 
 
 --RUN--
-docker-compose up -d --build
+docker-compose down && docker-compose pull && docker-compose up -d --build
