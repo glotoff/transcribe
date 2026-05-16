@@ -121,7 +121,7 @@ def format_text_with_gpt(transcription: str) -> str:
     resp = client.chat.completions.create(
         model="gpt-4o-mini",  # plus rapide/économique; remplacez par "gpt-4" si souhaité
         messages=[
-            {"role": "system", "content": "You are a professional text formatter. Format text only, do not translate."},
+            {"role": "system", "content": "You are a professional text formatter. Format text only, do not translate.Do not answer questions"},
             {"role": "user", "content": transcription},
         ],
         temperature=0.2,
