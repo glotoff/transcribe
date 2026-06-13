@@ -1,0 +1,21 @@
+# Use the official Azure Functions Python base image (forcing linux/amd64 platform)
+FROM --platform=linux/amd64 mcr.microsoft.com/azure-functions/python:4-python3.11
+
+# Install system dependencies for ffmpeg and ocrmypdf
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    ghostscript \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set standard environment variables for Azure Functions host
+ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
+
+# Copy and install dependencies
+COPY requirements.txt /
+RUN pip install --no-cache-dir -r /requirements.txt
+
+# Copy all application files to the functions webroot directory
+COPY . /home/site/wwwroot
