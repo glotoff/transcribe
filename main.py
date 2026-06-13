@@ -10,6 +10,8 @@ import whisper
 import os
 import jsonify
 from openai import OpenAI
+import threading
+from gmail_drive_processor import poll_gmail_inbox
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -60,3 +62,9 @@ transcription = transcribe_online("input.ogg")
 test = format_text_with_gpt(transcription)
 print(test)
 #test = format_text_with_gpt(" Salut Lilia, j'espère que tu vas bien. Écoute, nous on a reçu cette semaine le calendrier pour l'année prochaine à Mermoz. Je ne sais pas si vous, vous avez déjà aussi le calendrier. J'étais en train de me dire, la semaine d'octobre, les filles pourraient partir peut-être toutes les deux à Bakou pour une semaine pour faire un stage dans un laboratoire. Puisque tu sais, le frère d'Azad est chirurgien et donc je pense que pour lui ce serait facile de trouver")
+
+# Start Gmail polling in background thread
+gmail_thread = threading.Thread(target=poll_gmail_inbox, kwargs={'poll_interval': 20, 'drive_folder_name': 'Email Attachments'})
+gmail_thread.daemon = True
+gmail_thread.start()
+print("Gmail polling started in background (20-second interval)")
