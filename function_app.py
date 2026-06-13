@@ -8,16 +8,24 @@ from bot import create_app
 # Initialize the Azure Function App
 app = func.FunctionApp()
 
+# Retrieve secret webhook validation token if configured
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET")
+
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. Telegram Webhook Endpoint (HTTP POST Trigger)
 # ──────────────────────────────────────────────────────────────────────────────
-# Receives the update from Telegram, puts it in the Azure Storage Queue, and
-# returns HTTP 200 immediately to acknowledge receipt and prevent Telegram from retrying.
 @app.route(route="telegram-webhook", auth_level=func.AuthLevel.ANONYMOUS, methods=["POST"])
 @app.queue_output(arg_name="msg", queue_name="telegram-updates", connection="AzureWebJobsStorage")
 def telegram_webhook(req: func.HttpRequest, msg: func.Out[str]) -> func.HttpResponse:
     logging.info("Telegram Webhook received a request.")
     try:
+        # Validate Telegram secret token if configured
+        if TELEGRAM_WEBHOOK_SECRET:
+            token = req.headers.get("X-Telegram-Bot-Api-Secret-Token")
+            if token != TELEGRAM_WEBHOOK_SECRET:
+                logging.warning("Unauthorized request: Telegram webhook secret token mismatch.")
+                return func.HttpResponse("Unauthorized", status_code=403)
+
         body = req.get_json()
         if not body:
             logging.warning("Received empty request body.")

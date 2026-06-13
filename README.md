@@ -59,6 +59,15 @@ This mode deploys the bot to Azure Functions. It uses a **Webhook + Azure Queue 
 ### Container Build (Azure Functions)
 Because `ocrmypdf` depends on system binaries (`tesseract-ocr`, `ghostscript`), the Azure Function must be deployed as a custom container using `Dockerfile.azure`.
 
+> [!TIP]
+> **Troubleshooting ARM64 Hosts (Windows ARM64 / macOS Apple Silicon):**
+> Because the Azure Function base image is compiled for `linux/amd64`, building it on an ARM64 host may fail with `exec /bin/sh: exec format error`.
+> To fix this, run this command in your terminal to register the AMD64 emulator in your Docker daemon:
+> ```bash
+> docker run --privileged --rm tonistiigi/binfmt --install all
+> ```
+> Once registered, retry the `docker build` command.
+
 1. Build the container image:
    ```bash
    docker build -t glotoff/transcribe-azure-bot:latest -f Dockerfile.azure .
@@ -91,8 +100,14 @@ Go to the **Configuration** or **Environment variables** section of your Functio
 - `AzureWebJobsStorage`: The Connection String of the Storage Account you created in Step 1.
   - *How to retrieve:* In the Azure Portal, navigate to your storage account, go to **Security + networking** -> **Access keys**, click **Show** next to the `key1` **Connection string**, and copy the entire string (starts with `DefaultEndpointsProtocol=https...`).
 
-#### 4. Register the Webhook
-Register your HTTP trigger endpoint as Telegram's webhook URL:
-```bash
-curl -F "url=https://<your-function-app-name>.azurewebsites.net/api/telegram-webhook" https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook
-```
+#### 4. Register the Webhook (Securely)
+To secure your webhook endpoint, register it with a secure, random `secret_token`. This tells Telegram to send this secret in the headers so that your function app can verify the request comes from Telegram:
+
+1. Generate a secure random string (e.g., a UUID or random character sequence).
+2. Set the `TELEGRAM_WEBHOOK_SECRET` App Setting in your Function App to this random string.
+3. Register the webhook with Telegram by passing the `secret_token` parameter:
+   ```bash
+   curl -F "url=https://<your-function-app-name>.azurewebsites.net/api/telegram-webhook" \
+        -F "secret_token=<YOUR_SECURE_RANDOM_TOKEN>" \
+        https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook
+   ```
