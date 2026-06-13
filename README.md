@@ -61,20 +61,38 @@ Because `ocrmypdf` depends on system binaries (`tesseract-ocr`, `ghostscript`), 
 
 1. Build the container image:
    ```bash
-   docker build -t <your-registry>.azurecr.io/transcribe-azure-bot:latest -f Dockerfile.azure .
+   docker build -t glotoff/transcribe-azure-bot:latest -f Dockerfile.azure .
    ```
-2. Push it to your registry (e.g., Azure Container Registry):
+2. Push it to your Docker Hub registry:
    ```bash
-   docker push <your-registry>.azurecr.io/transcribe-azure-bot:latest
+   docker push glotoff/transcribe-azure-bot:latest
    ```
 
 ### Azure Setup & Deployment
-1. Deploy the container image to an Azure Function App (Premium or Container App hosting plan).
-2. Add these App Settings to your Azure Function:
-   - `TELEGRAM_BOT_TOKEN`
-   - `OPENAI_API_KEY`
-   - `AzureWebJobsStorage` (set to your Azure Storage Account connection string)
-3. Register your Azure Function HTTP trigger endpoint as Telegram's Webhook URL:
-   ```bash
-   curl -F "url=https://<your-function-app-name>.azurewebsites.net/api/telegram-webhook" https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook
-   ```
+
+#### 1. Create the Storage Account
+Create a new Azure Storage Account to handle the function execution state and queues:
+- **Performance:** **Standard** (General-purpose v2).
+- **Redundancy:** **Locally-redundant storage (LRS)** (cheapest tier).
+- **Preferred Storage Type:** **Queues** or **Any**.
+- **Networking:** **Enable public network access** (Enable from all networks) so the serverless worker can reach it.
+- **Recovery:** **Disable/Uncheck all soft delete options** (blob, container, file shares) to avoid paying for retained temporary run files and queue history.
+
+#### 2. Create the Function App
+Create a new Function App with the following hosting options:
+- **Hosting Plan:** Select **Container Apps environment**.
+  - *Why:* This is the only serverless (scale-to-zero) hosting option on Azure that supports custom Linux Docker containers (needed for `ocrmypdf`).
+- **Deploy the container image** to this Function App once built and pushed.
+
+#### 3. Configure App Settings
+Go to the **Configuration** or **Environment variables** section of your Function App and add:
+- `TELEGRAM_BOT_TOKEN`: Your bot's API token from BotFather.
+- `OPENAI_API_KEY`: Your OpenAI API key.
+- `AzureWebJobsStorage`: The Connection String of the Storage Account you created in Step 1.
+  - *How to retrieve:* In the Azure Portal, navigate to your storage account, go to **Security + networking** -> **Access keys**, click **Show** next to the `key1` **Connection string**, and copy the entire string (starts with `DefaultEndpointsProtocol=https...`).
+
+#### 4. Register the Webhook
+Register your HTTP trigger endpoint as Telegram's webhook URL:
+```bash
+curl -F "url=https://<your-function-app-name>.azurewebsites.net/api/telegram-webhook" https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook
+```
