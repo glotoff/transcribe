@@ -70,7 +70,7 @@ Because `ocrmypdf` depends on system binaries (`tesseract-ocr`, `ghostscript`), 
 
 1. Build the container image:
    ```bash
-   docker build -t glotoff/transcribe-azure-bot:latest -f Dockerfile.azure .
+   docker build --platform linux/amd64 -t glotoff/transcribe-azure-bot:latest -f Dockerfile.azure .
    ```
 2. Push it to your Docker Hub registry:
    ```bash
@@ -92,11 +92,18 @@ Create a new Function App with the following hosting options:
 - **Hosting Plan:** Select **Container Apps environment**.
   - *Why:* This is the only serverless (scale-to-zero) hosting option on Azure that supports custom Linux Docker containers (needed for `ocrmypdf`).
 - **Deploy the container image** to this Function App once built and pushed.
+- **Enable Ingress (Public URL access):**
+  1. Once created, open your Function App in the portal and go to **Networking** -> **Ingress** in the left-hand menu.
+  2. Toggle **Ingress** to **Enabled**.
+  3. Select **Accepting traffic from anywhere** (to allow Telegram to call it).
+  4. Set **Target port** to **80** (default Azure Functions port).
+  5. Click **Save**. This will generate your public **Application URL** on the app's **Overview** page.
 
 #### 3. Configure App Settings
 Go to the **Configuration** or **Environment variables** section of your Function App and add:
 - `TELEGRAM_BOT_TOKEN`: Your bot's API token from BotFather.
 - `OPENAI_API_KEY`: Your OpenAI API key.
+- `TELEGRAM_WEBHOOK_SECRET`: (Optional, recommended) The secure random string you choose for webhook security verification.
 - `AzureWebJobsStorage`: The Connection String of the Storage Account you created in Step 1.
   - *How to retrieve:* In the Azure Portal, navigate to your storage account, go to **Security + networking** -> **Access keys**, click **Show** next to the `key1` **Connection string**, and copy the entire string (starts with `DefaultEndpointsProtocol=https...`).
 
@@ -111,3 +118,9 @@ To secure your webhook endpoint, register it with a secure, random `secret_token
         -F "secret_token=<YOUR_SECURE_RANDOM_TOKEN>" \
         https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook
    ```
+
+#### 5. Removing the Webhook (Switching back to Option 1)
+If you want to stop using Azure Functions and switch back to the local/VPS polling bot (Option 1), you must delete the webhook from Telegram's servers. Run this command:
+```bash
+curl https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/deleteWebhook
+```

@@ -1,5 +1,5 @@
 # Use the official Azure Functions Python base image (forcing linux/amd64 platform)
-FROM --platform=linux/amd64 mcr.microsoft.com/azure-functions/python:4-python3.11
+FROM --platform=linux/amd64 mcr.microsoft.com/azure-functions/python:4-python3.12
 
 # Install system dependencies for ffmpeg and ocrmypdf
 RUN apt-get update && apt-get install -y --no-install-recommends \
