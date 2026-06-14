@@ -231,14 +231,17 @@ async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE):
 # ──────────────────────────────────────────────────────────────────────────────
 # Main
 # ──────────────────────────────────────────────────────────────────────────────
-def main():
+def create_app() -> Application:
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
     app.add_handler(MessageHandler(filters.Document.PDF, handle_pdf))
     app.add_error_handler(on_error)
+    return app
 
+def main():
+    app = create_app()
     app.run_polling()
 
 if __name__ == "__main__":
