@@ -4,9 +4,11 @@ This bot provides:
 1. **Audio/Voice transcription** using OpenAI Whisper API and formatting with GPT-4o-mini.
 2. **PDF OCR** using `ocrmypdf`.
 
-Two execution options are available:
+Three execution options are available:
 - **Option 1: Local / VPS Polling (using Docker Compose)**
 - **Option 2: Azure Functions (Serverless Webhook + Queue Storage)**
+- **Option 3: Google Cloud Run (Serverless Webhook)**
+
 
 ---
 
@@ -124,3 +126,76 @@ If you want to stop using Azure Functions and switch back to the local/VPS polli
 ```bash
 curl https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/deleteWebhook
 ```
+
+---
+
+## Option 3: Google Cloud Run (Serverless Webhook)
+
+This mode deploys the bot to Google Cloud Run, a serverless platform that automatically scales containers to zero when they are idle.
+
+### Prerequisites
+- [Google Cloud SDK (gcloud CLI)](https://cloud.google.com/sdk/docs/install) installed and authenticated.
+- A Google Cloud Project with billing enabled.
+
+### Deployment
+
+1. **First-time deployment** (deploys the service and registers a dummy webhook to pass startup health checks):
+   ```bash
+   gcloud run deploy transcribe-bot \
+     --source . \
+     --region <GCP_REGION> \
+     --allow-unauthenticated \
+     --set-env-vars TELEGRAM_BOT_TOKEN="<TELEGRAM_BOT_TOKEN>",OPENAI_API_KEY="<OPENAI_API_KEY>",WEBHOOK_URL="https://example.com"
+   ```
+   *(Note: If you receive an error about a missing default Compute service account, use the `--build-service-account` and `--service-account` flags to specify custom service accounts.)*
+
+2. **Retrieve the Service URL** output by the command (e.g. `https://transcribe-bot-xxxxx.a.run.app`).
+
+3. **Update WEBHOOK_URL** to set the real service URL. This will trigger a rolling update and register the webhook with Telegram:
+   ```bash
+   gcloud run services update transcribe-bot \
+     --region <GCP_REGION> \
+     --update-env-vars WEBHOOK_URL="https://transcribe-bot-xxxxx.a.run.app"
+   ```
+
+### How to Stop / Pause the Bot
+
+Because Cloud Run charges only for active request processing, when the bot is idle, it consumes 0 resources and generates 0 cost. However, if you want to stop/pause the bot from processing messages entirely, use one of the following methods:
+
+#### Method A: Disable Telegram's Webhook (Recommended)
+This tells Telegram to stop forwarding new messages to your Cloud Run URL. The service will naturally scale down to 0 instances and stay inactive:
+```bash
+curl https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/deleteWebhook
+```
+* **To Resume:** Redeploy or call Telegram's `setWebhook` endpoint to re-register the Cloud Run URL.
+
+#### Method B: Turn off public Ingress
+This blocks external traffic (including Telegram) from reaching your Cloud Run service:
+```bash
+gcloud run services update transcribe-bot \
+  --ingress internal \
+  --region <GCP_REGION>
+```
+* **To Resume:** Re-enable external traffic:
+  ```bash
+  gcloud run services update transcribe-bot --ingress all --region <GCP_REGION>
+  ```
+
+#### Method C: Set Maximum Instances to 0
+This prevents Cloud Run from starting any container instances, returning a `503 Service Unavailable` error to incoming requests:
+```bash
+gcloud run services update transcribe-bot \
+  --max-instances 0 \
+  --region <GCP_REGION>
+```
+* **To Resume:** Reset the maximum instance limit (e.g., 10 or more):
+  ```bash
+  gcloud run services update transcribe-bot --max-instances 10 --region <GCP_REGION>
+  ```
+
+#### Method D: Delete the Service
+If you want to permanently remove the deployment:
+```bash
+gcloud run services delete transcribe-bot \
+  --region <GCP_REGION>
+```
