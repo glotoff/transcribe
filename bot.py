@@ -242,7 +242,20 @@ def create_app() -> Application:
 
 def main():
     app = create_app()
-    app.run_polling()
+    webhook_url = os.getenv("WEBHOOK_URL")
+    if webhook_url:
+        port = int(os.getenv("PORT", "8080"))
+        logger.info(f"Running webhook mode on port {port} with URL {webhook_url}")
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path=TELEGRAM_BOT_TOKEN,
+            webhook_url=f"{webhook_url}/{TELEGRAM_BOT_TOKEN}"
+        )
+    else:
+        logger.info("Running polling mode")
+        app.run_polling()
 
 if __name__ == "__main__":
     main()
+
