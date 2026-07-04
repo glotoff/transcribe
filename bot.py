@@ -245,12 +245,14 @@ def main():
     webhook_url = os.getenv("WEBHOOK_URL")
     if webhook_url:
         port = int(os.getenv("PORT", "8080"))
+        webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
         logger.info(f"Running webhook mode on port {port} with URL {webhook_url}")
         app.run_webhook(
             listen="0.0.0.0",
             port=port,
             url_path=TELEGRAM_BOT_TOKEN,
-            webhook_url=f"{webhook_url}/{TELEGRAM_BOT_TOKEN}"
+            webhook_url=f"{webhook_url}/{TELEGRAM_BOT_TOKEN}",
+            secret_token=webhook_secret
         )
     else:
         logger.info("Running polling mode")
