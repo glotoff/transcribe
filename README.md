@@ -145,7 +145,7 @@ This mode deploys the bot to Google Cloud Run, a serverless platform that automa
      --source . \
      --region <GCP_REGION> \
      --allow-unauthenticated \
-     --set-env-vars TELEGRAM_BOT_TOKEN="<TELEGRAM_BOT_TOKEN>",OPENAI_API_KEY="<OPENAI_API_KEY>",WEBHOOK_URL="https://example.com"
+     --set-env-vars TELEGRAM_BOT_TOKEN="<TELEGRAM_BOT_TOKEN>",OPENAI_API_KEY="<OPENAI_API_KEY>",WEBHOOK_URL="https://example.com",TELEGRAM_WEBHOOK_SECRET="<YOUR_SECRET_TOKEN>"
    ```
    *(Note: If you receive an error about a missing default Compute service account, use the `--build-service-account` and `--service-account` flags to specify custom service accounts.)*
 
@@ -156,6 +156,21 @@ This mode deploys the bot to Google Cloud Run, a serverless platform that automa
    gcloud run services update transcribe-bot \
      --region <GCP_REGION> \
      --update-env-vars WEBHOOK_URL="https://transcribe-bot-xxxxx.a.run.app"
+   ```
+
+### Webhook Protection / Security
+
+By default, the webhook endpoint is protected by a **secret URL path** because the path contains your `TELEGRAM_BOT_TOKEN`, which acts as a shared secret.
+
+To add an extra layer of protection (e.g. against unauthorized requests or spoofing), you can configure a **Webhook Secret Token**. When configured, Telegram sends this token in the `X-Telegram-Bot-Api-Secret-Token` header of every update request, and the bot will automatically drop any requests that lack or have an invalid token (returning a `403 Forbidden` response).
+
+To enable this:
+1. Generate a secure random string (e.g. `a4b89e37fc2d4e8cb49a460b37cd05ff`).
+2. Update the environment variables of your Cloud Run service to set `TELEGRAM_WEBHOOK_SECRET`:
+   ```bash
+   gcloud run services update transcribe-bot \
+     --region <GCP_REGION> \
+     --update-env-vars TELEGRAM_WEBHOOK_SECRET="<YOUR_SECRET_TOKEN>"
    ```
 
 ### How to Stop / Pause the Bot
