@@ -137,13 +137,13 @@ def transcribe_online(file_path: str, mime_type: str | None = None) -> str:
             model="gemini-3.5-transcribe",
             input=[
                 {
-                    "type": "file_data",
-                    "file_uri": uploaded_file.uri,
+                    "type": "audio",
+                    "uri": uploaded_file.uri,
                     "mime_type": resolved_mime,
                 }
             ],
         )
-        text = getattr(interaction, "text", None) or getattr(interaction, "output_text", None)
+        text = getattr(interaction, "output_text", None) or getattr(interaction, "text", None)
         if not text and hasattr(interaction, "outputs"):
             text = "".join([str(o) for o in interaction.outputs])
         return str(text).strip() if text else ""
