@@ -11,9 +11,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 from io import BytesIO
 
+import mimetypes
 import ocrmypdf
 
 from google import genai
+from google.genai import types
 
 from telegram import Update, InputFile
 from telegram.constants import MessageLimit
@@ -102,12 +104,34 @@ async def send_text_safely(update: Update, text: str):
 # ──────────────────────────────────────────────────────────────────────────────
 # Google Gemini calls
 # ──────────────────────────────────────────────────────────────────────────────
-def transcribe_online(file_path: str) -> str:
+def get_audio_mime_type(file_path: str, default: str = "audio/ogg") -> str:
+    ext = Path(file_path).suffix.lower()
+    mapping = {
+        ".ogg": "audio/ogg",
+        ".oga": "audio/ogg",
+        ".opus": "audio/ogg",
+        ".mp3": "audio/mp3",
+        ".wav": "audio/wav",
+        ".m4a": "audio/mp4",
+        ".mp4": "audio/mp4",
+        ".flac": "audio/flac",
+        ".aac": "audio/aac",
+    }
+    if ext in mapping:
+        return mapping[ext]
+    guessed, _ = mimetypes.guess_type(file_path)
+    return guessed or default
+
+def transcribe_online(file_path: str, mime_type: str | None = None) -> str:
     """
     Envoie le fichier audio à l'API Google Gemini (gemini-3.5-transcribe).
     Le modèle applique nativement la mise en forme intelligente (ponctuation, paragraphes).
     """
-    uploaded_file = client.files.upload(file=file_path)
+    resolved_mime = mime_type or get_audio_mime_type(file_path)
+    uploaded_file = client.files.upload(
+        file=file_path,
+        config=types.UploadFileConfig(mime_type=resolved_mime),
+    )
     try:
         interaction = client.interactions.create(
             model="gemini-3.5-transcribe",
@@ -115,7 +139,7 @@ def transcribe_online(file_path: str) -> str:
                 {
                     "type": "file_data",
                     "file_uri": uploaded_file.uri,
-                    "mime_type": uploaded_file.mime_type or "audio/ogg",
+                    "mime_type": resolved_mime,
                 }
             ],
         )
@@ -147,13 +171,14 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await context.bot.get_file(voice_or_audio.file_id)
     filename = os.path.basename(urlparse(file.file_path).path)
     ext = Path(filename).suffix or ".ogg"  # fallback
+    audio_mime = getattr(voice_or_audio, "mime_type", None) or get_audio_mime_type(filename)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
         temp_in_path = tmp.name
     try:
         await file.download_to_drive(temp_in_path)
         await update.message.reply_text("⏳ Transcription en cours...")
-        transcription = transcribe_online(temp_in_path)
+        transcription = transcribe_online(temp_in_path, mime_type=audio_mime)
 
         # Envoi sécurisé (chunking ou pièce jointe)
         await send_text_safely(update, f"📝 Transcription :\n{transcription}")

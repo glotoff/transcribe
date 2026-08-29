@@ -1,5 +1,6 @@
 import os
 from google import genai
+from google.genai import types
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
@@ -7,7 +8,10 @@ def transcribe_online(file_path):
     # Send to Google Gemini 3.5 Transcribe
     client = genai.Client(api_key=GEMINI_API_KEY)
 
-    uploaded_file = client.files.upload(file=file_path)
+    uploaded_file = client.files.upload(
+        file=file_path,
+        config=types.UploadFileConfig(mime_type="audio/ogg"),
+    )
     try:
         interaction = client.interactions.create(
             model="gemini-3.5-transcribe",
@@ -15,7 +19,7 @@ def transcribe_online(file_path):
                 {
                     "type": "file_data",
                     "file_uri": uploaded_file.uri,
-                    "mime_type": uploaded_file.mime_type or "audio/ogg",
+                    "mime_type": "audio/ogg",
                 }
             ],
         )
