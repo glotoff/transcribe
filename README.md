@@ -1,7 +1,7 @@
 # Transcription & OCR Telegram Bot
 
 This bot provides:
-1. **Audio/Voice transcription** using OpenAI Whisper API and formatting with GPT-4o-mini.
+1. **Audio/Voice transcription** using Google Gemini 3.5 Transcribe API (with native smart formatting and punctuation).
 2. **PDF OCR** using `ocrmypdf`.
 
 Three execution options are available:
@@ -49,7 +49,7 @@ This mode deploys the bot to Azure Functions. It uses a **Webhook + Azure Queue 
        "FUNCTIONS_WORKER_RUNTIME": "python",
        "AzureWebJobsStorage": "<your-azure-storage-account-connection-string>",
        "TELEGRAM_BOT_TOKEN": "<your-telegram-bot-token>",
-       "OPENAI_API_KEY": "<your-openai-api-key>"
+       "GEMINI_API_KEY": "<your-gemini-api-key>"
      }
    }
    ```
@@ -104,7 +104,7 @@ Create a new Function App with the following hosting options:
 #### 3. Configure App Settings
 Go to the **Configuration** or **Environment variables** section of your Function App and add:
 - `TELEGRAM_BOT_TOKEN`: Your bot's API token from BotFather.
-- `OPENAI_API_KEY`: Your OpenAI API key.
+- `GEMINI_API_KEY`: Your Google Gemini API key.
 - `TELEGRAM_WEBHOOK_SECRET`: (Optional, recommended) The secure random string you choose for webhook security verification.
 - `AzureWebJobsStorage`: The Connection String of the Storage Account you created in Step 1.
   - *How to retrieve:* In the Azure Portal, navigate to your storage account, go to **Security + networking** -> **Access keys**, click **Show** next to the `key1` **Connection string**, and copy the entire string (starts with `DefaultEndpointsProtocol=https...`).
@@ -145,7 +145,7 @@ This mode deploys the bot to Google Cloud Run, a serverless platform that automa
      --source . \
      --region <GCP_REGION> \
      --allow-unauthenticated \
-     --set-env-vars TELEGRAM_BOT_TOKEN="<TELEGRAM_BOT_TOKEN>",OPENAI_API_KEY="<OPENAI_API_KEY>",WEBHOOK_URL="https://example.com",TELEGRAM_WEBHOOK_SECRET="<YOUR_SECRET_TOKEN>"
+     --set-env-vars TELEGRAM_BOT_TOKEN="<TELEGRAM_BOT_TOKEN>",GEMINI_API_KEY="<GEMINI_API_KEY>",WEBHOOK_URL="https://example.com",TELEGRAM_WEBHOOK_SECRET="<YOUR_SECRET_TOKEN>"
    ```
    *(Note: If you receive an error about a missing default Compute service account, use the `--build-service-account` and `--service-account` flags to specify custom service accounts.)*
 

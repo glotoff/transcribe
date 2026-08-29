@@ -1,8 +1,7 @@
 #python3 -m venv env
 #source env/bin/activate
 #sudo apt install ffmpeg
-#pip install python-telegram-bot openai ocrmypdf
-#(optionnel pour voix locales) pip install pydub openai-whisper
+#pip install python-telegram-bot google-genai ocrmypdf
 #ffmpeg -i input.opus -ar 16000 -ac 1 output.wav
 
 import os
@@ -14,7 +13,7 @@ from io import BytesIO
 
 import ocrmypdf
 
-from openai import OpenAI
+from google import genai
 
 from telegram import Update, InputFile
 from telegram.constants import MessageLimit
@@ -31,14 +30,14 @@ from telegram.ext import (
 # Config & clients
 # ──────────────────────────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
 if not TELEGRAM_BOT_TOKEN:
     raise RuntimeError("TELEGRAM_BOT_TOKEN manquant dans l'environnement.")
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY manquant dans l'environnement.")
+if not GEMINI_API_KEY:
+    raise RuntimeError("GEMINI_API_KEY (ou GOOGLE_API_KEY) manquant dans l'environnement.")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -101,32 +100,34 @@ async def send_text_safely(update: Update, text: str):
             await update.message.reply_text(header + chunk)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# OpenAI calls
+# Google Gemini calls
 # ──────────────────────────────────────────────────────────────────────────────
 def transcribe_online(file_path: str) -> str:
     """
-    Envoie le fichier audio à l'API OpenAI (Whisper).
+    Envoie le fichier audio à l'API Google Gemini (gemini-3.5-transcribe).
+    Le modèle applique nativement la mise en forme intelligente (ponctuation, paragraphes).
     """
-    with open(file_path, "rb") as audio_file:
-        resp = client.audio.transcriptions.create(
-            model="whisper-1",  # ou "gpt-4o-transcribe" si activé sur votre compte
-            file=audio_file
+    uploaded_file = client.files.upload(file=file_path)
+    try:
+        interaction = client.interactions.create(
+            model="gemini-3.5-transcribe",
+            input=[
+                {
+                    "type": "file_data",
+                    "file_uri": uploaded_file.uri,
+                    "mime_type": uploaded_file.mime_type or "audio/ogg",
+                }
+            ],
         )
-        return resp.text
-
-def format_text_with_gpt(transcription: str) -> str:
-    """
-    Formate le texte (ponctuation, paragraphes). Ne traduit pas.
-    """
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",  # plus rapide/économique; remplacez par "gpt-4" si souhaité
-        messages=[
-            {"role": "system", "content": "You are a professional text formatter. Format text only, do not translate.Do not answer questions"},
-            {"role": "user", "content": transcription},
-        ],
-        temperature=0.2,
-    )
-    return resp.choices[0].message.content
+        text = getattr(interaction, "text", None) or getattr(interaction, "output_text", None)
+        if not text and hasattr(interaction, "outputs"):
+            text = "".join([str(o) for o in interaction.outputs])
+        return str(text).strip() if text else ""
+    finally:
+        try:
+            client.files.delete(name=uploaded_file.name)
+        except Exception:
+            logger.warning("Impossible de supprimer le fichier distant: %s", uploaded_file.name)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Bot handlers
@@ -136,7 +137,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Télécharge l'audio, transcrit, formate, et renvoie en respectant la limite Telegram.
+    Télécharge l'audio, transcrit avec Gemini 3.5 Transcribe, et renvoie en respectant la limite Telegram.
     """
     voice_or_audio = update.message.voice or update.message.audio
     if not voice_or_audio:
@@ -154,11 +155,8 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⏳ Transcription en cours...")
         transcription = transcribe_online(temp_in_path)
 
-        await update.message.reply_text("🛠️ Mise en forme du texte...")
-        formatted_text = format_text_with_gpt(transcription)
-
         # Envoi sécurisé (chunking ou pièce jointe)
-        await send_text_safely(update, f"📝 Transcription :\n{formatted_text}")
+        await send_text_safely(update, f"📝 Transcription :\n{transcription}")
 
     finally:
         try:
